@@ -3,7 +3,6 @@ import os
 import numpy as np
 import cv2
 import tensorflow as tf
-from tensorflow.keras.preprocessing.image import img_to_array
 
 app = Flask(__name__)
 
@@ -23,13 +22,13 @@ def preprocess_frame(frame):
     frame = frame / 255.0  # Rescale values to [0, 1]
     return frame
 
-# Function to analyze the video and extract violent moments in "minute:second" format
+# Function to analyze the video and extract violent moments with their probabilities
 def analyze_video(video_path):
     cap = cv2.VideoCapture(video_path)
-    violent_moments = []
+    violent_moments = []  # Use a list to hold dictionaries for each moment
     fps = int(cap.get(cv2.CAP_PROP_FPS))  # Get frames per second
     seconds_per_frame = 1 / fps
-    skip_frames = int(10 * fps)  # Number of frames to skip for 10 seconds
+    skip_frames = int(12 * fps)  # Number of frames to skip for 10 seconds
 
     frame_count = 0
     while cap.isOpened():
@@ -49,8 +48,12 @@ def analyze_video(video_path):
             minutes = total_seconds // 60
             seconds = total_seconds % 60
             time_formatted = f"{minutes}:{seconds:02d}"  # Format as "minute:second"
-            if time_formatted not in violent_moments:
-                violent_moments.append(time_formatted)
+            
+            # Append a dictionary with 'time' and 'violence' keys
+            violent_moments.append({
+                "time": time_formatted,
+                "violence": round(float(prediction), 2)  # Round to 2 decimal places
+            })
 
             # Skip the next 10 seconds worth of frames
             frame_count += skip_frames
