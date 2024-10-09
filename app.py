@@ -23,13 +23,13 @@ def preprocess_frame(frame):
     frame = frame / 255.0  # Rescale values to [0, 1]
     return frame
 
-# Function to analyze the video and extract violent minutes
+# Function to analyze the video and extract violent moments in "minute:second" format
 def analyze_video(video_path):
     cap = cv2.VideoCapture(video_path)
-    violent_minutes = []
+    violent_moments = []
     fps = int(cap.get(cv2.CAP_PROP_FPS))  # Get frames per second
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # Get total number of frames
     seconds_per_frame = 1 / fps
+    skip_frames = int(10 * fps)  # Number of frames to skip for 10 seconds
 
     frame_count = 0
     while cap.isOpened():
@@ -45,14 +45,22 @@ def analyze_video(video_path):
         prediction = interpreter.get_tensor(output_details[0]['index'])[0][0]
 
         if prediction > 0.7:  # If the value > 0.7, classify as violence
-            minute = int(frame_count * seconds_per_frame // 60)  # Calculate the minute of violence
-            if minute not in violent_minutes:
-                violent_minutes.append(minute)
+            total_seconds = int(frame_count * seconds_per_frame)
+            minutes = total_seconds // 60
+            seconds = total_seconds % 60
+            time_formatted = f"{minutes}:{seconds:02d}"  # Format as "minute:second"
+            if time_formatted not in violent_moments:
+                violent_moments.append(time_formatted)
+
+            # Skip the next 10 seconds worth of frames
+            frame_count += skip_frames
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_count)
+            continue  # Skip to the next iteration
 
         frame_count += 1
 
     cap.release()
-    return violent_minutes
+    return violent_moments
 
 @app.route('/upload', methods=['POST'])
 def upload_video():
@@ -63,8 +71,8 @@ def upload_video():
     video_path = f"./uploads/{video_file.filename}"
     video_file.save(video_path)
 
-    violent_minutes = analyze_video(video_path)
-    return jsonify({"violent_minutes": violent_minutes})
+    violent_moments = analyze_video(video_path)
+    return jsonify({"violent_moments": violent_moments})
 
 if __name__ == '__main__':
     if not os.path.exists('uploads'):
