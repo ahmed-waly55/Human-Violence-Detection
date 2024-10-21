@@ -43,7 +43,7 @@ You can also test the API by sending a video file and receiving frames where vio
 ### 📸 API Test Response Example
 *Include a screenshot here showing the API response, displaying detected frames and their violence probabilities.*
 
-![image](https://github.com/user-attachments/assets/2249b24c-b95a-4314-bf7e-689a51946502)
+![image](https://github.com/user-attachments/assets/f8cf742b-67ef-49d2-827d-69e10a259221)
 
 
 ![image](https://github.com/user-attachments/assets/442c30a2-a694-4cc9-ba64-0122143cd314)
