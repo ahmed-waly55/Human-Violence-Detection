@@ -4,9 +4,11 @@ import os
 import numpy as np
 import cv2
 import tensorflow as tf
+import uuid
+from datetime import datetime
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app)
 
 # Load the trained model in TFLite format
 interpreter = tf.lite.Interpreter(model_path='violence_detection_model_quantized.tflite')
@@ -25,7 +27,7 @@ def preprocess_frame(frame):
     return frame
 
 # Function to analyze the video and extract violent moments with their probabilities and frames
-def analyze_video(video_path):
+def analyze_video(video_path, output_dir):
     cap = cv2.VideoCapture(video_path)
     violent_moments = []  # Use a list to hold dictionaries for each moment
     fps = int(cap.get(cv2.CAP_PROP_FPS))  # Get frames per second
@@ -49,16 +51,16 @@ def analyze_video(video_path):
             seconds = total_seconds % 60
             time_formatted = f"{minutes}:{seconds:02d}"  # Format as "minute:second"
             
-            # Save the frame as an image
+            # Save the frame as an image in the unique output directory
             image_filename = f"frame_{minutes}_{seconds:02d}.jpg"
-            image_path = os.path.join('frames', image_filename)
+            image_path = os.path.join(output_dir, image_filename)
             cv2.imwrite(image_path, frame)
 
             # Append a dictionary with 'time', 'violence', and 'image' keys
             violent_moments.append({
                 "time": time_formatted,
                 "violence": round(float(prediction), 2),  # Round to 2 decimal places
-                "image": f"/frames/{image_filename}"  # Add the image path
+                "image": f"/frames/{os.path.basename(output_dir)}/{image_filename}"  # Add the image path
             })
 
             # Skip the next 10 seconds worth of frames
@@ -72,9 +74,9 @@ def analyze_video(video_path):
     return violent_moments
 
 # Route to serve the saved images
-@app.route('/frames/<filename>')
-def serve_frame(filename):
-    return send_from_directory('frames', filename)
+@app.route('/frames/<folder>/<filename>')
+def serve_frame(folder, filename):
+    return send_from_directory(os.path.join('frames', folder), filename)
 
 @app.route('/upload', methods=['POST'])
 def upload_video():
@@ -82,11 +84,23 @@ def upload_video():
         return jsonify({"error": "No video file provided."}), 400
 
     video_file = request.files['video']
-    video_path = f"./uploads/{video_file.filename}"
-    video_file.save(video_path)
+    video_id = str(uuid.uuid4())  # Generate a unique ID for the video
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # Use timestamp for uniqueness
+    output_dir = os.path.join('frames', f"{video_id}_{timestamp}")
+    os.makedirs(output_dir, exist_ok=True)  # Create a unique directory for this video's frames
 
-    violent_moments = analyze_video(video_path)
-    return jsonify({"violent_moments": violent_moments})
+    try:
+        video_path = f"./uploads/{video_file.filename}"
+        video_file.save(video_path)
+
+        violent_moments = analyze_video(video_path, output_dir)
+        return jsonify({"violent_moments": violent_moments})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        # Clean up the uploaded video file (optional)
+        if os.path.exists(video_path):
+            os.remove(video_path)
 
 if __name__ == '__main__':
     # Create necessary directories if they don't exist
